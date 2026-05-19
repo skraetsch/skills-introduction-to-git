@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Auf den Spuren von Louis de Funès – Saint-Tropez</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }
+  body { display: flex; flex-direction: row; background: #fdfaf3; color: #2b2b2b; }
+
+  #sidebar {
+    width: 380px;
+    height: 100vh;
+    overflow-y: auto;
+    background: #fff8e7;
+    border-right: 3px solid #c8a04b;
+    padding: 16px 18px;
+  }
+  #sidebar h1 {
+    font-size: 1.25rem;
+    margin: 0 0 4px;
+    color: #8b1e1e;
+  }
+  #sidebar .subtitle {
+    font-size: 0.85rem;
+    color: #555;
+    margin-bottom: 12px;
+    font-style: italic;
+  }
+
+  .progress {
+    background: #eee2bb;
+    border-radius: 6px;
+    height: 8px;
+    overflow: hidden;
+    margin-bottom: 14px;
+  }
+  .progress-bar {
+    background: #8b1e1e;
+    height: 100%;
+    width: 0%;
+    transition: width 0.3s ease;
+  }
+
+  .step-card {
+    background: #fff;
+    border: 1px solid #e0d3a6;
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin-bottom: 10px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .step-card:hover { border-color: #8b1e1e; transform: translateX(2px); }
+  .step-card.active {
+    border-color: #8b1e1e;
+    background: #fff3e0;
+    box-shadow: 0 2px 6px rgba(139, 30, 30, 0.15);
+  }
+  .step-card.visited .step-num { background: #4a7c3c; }
+
+  .step-num {
+    display: inline-block;
+    width: 26px;
+    height: 26px;
+    line-height: 26px;
+    text-align: center;
+    background: #8b1e1e;
+    color: white;
+    border-radius: 50%;
+    font-weight: bold;
+    margin-right: 8px;
+    font-size: 0.85rem;
+  }
+  .step-title {
+    font-weight: 600;
+    font-size: 0.98rem;
+    display: inline;
+  }
+  .step-body {
+    margin-top: 8px;
+    font-size: 0.88rem;
+    line-height: 1.45;
+    color: #444;
+    display: none;
+  }
+  .step-card.active .step-body { display: block; }
+
+  .step-meta {
+    font-size: 0.78rem;
+    color: #777;
+    margin-top: 6px;
+  }
+  .step-meta strong { color: #555; }
+
+  .nav-buttons {
+    position: sticky;
+    bottom: 0;
+    background: #fff8e7;
+    padding: 10px 0;
+    display: flex;
+    gap: 8px;
+    border-top: 1px solid #e0d3a6;
+  }
+  .nav-buttons button {
+    flex: 1;
+    padding: 10px;
+    border: none;
+    background: #8b1e1e;
+    color: white;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.9rem;
+  }
+  .nav-buttons button:disabled { background: #c4a8a8; cursor: not-allowed; }
+  .nav-buttons button:hover:not(:disabled) { background: #6b1414; }
+
+  #map { flex: 1; height: 100vh; }
+
+  .marker-label {
+    background: #8b1e1e;
+    color: white;
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    line-height: 30px;
+    text-align: center;
+    font-weight: bold;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    border: 2px solid white;
+  }
+  .marker-label.visited { background: #4a7c3c; }
+  .marker-label.active { background: #f0a020; transform: scale(1.2); }
+
+  @media (max-width: 720px) {
+    body { flex-direction: column; }
+    #sidebar { width: 100%; height: 50vh; border-right: none; border-bottom: 3px solid #c8a04b; }
+    #map { height: 50vh; }
+  }
+</style>
+</head>
+<body>
+
+<div id="sidebar">
+  <h1>Auf den Spuren von Louis de Funès</h1>
+  <div class="subtitle">Le Gendarme de Saint-Tropez – Tour Schritt für Schritt</div>
+
+  <div class="progress"><div class="progress-bar" id="progressBar"></div></div>
+
+  <div id="steps"></div>
+
+  <div class="nav-buttons">
+    <button id="prevBtn">&larr; Zurück</button>
+    <button id="nextBtn">Weiter &rarr;</button>
+  </div>
+</div>
+
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const stops = [
+  {
+    title: "Musée de la Gendarmerie et du Cinéma",
+    coords: [43.27178, 6.63876],
+    address: "2 Place Blanqui, 83990 Saint-Tropez",
+    desc: "Der berühmteste Drehort: die echte Gendarmerie aus den Filmen. Heute ein Museum, gewidmet Louis de Funès und der Filmreihe. Originale Uniformen, Requisiten, Filmplakate und das gelbe Polizeiauto warten auf dich.",
+    tip: "Eintritt ca. 4 €. Geöffnet täglich außer Dienstag.",
+    duration: "45–60 Min."
+  },
+  {
+    title: "Place des Lices",
+    coords: [43.27063, 6.63769],
+    address: "Place des Lices, Saint-Tropez",
+    desc: "Der berühmte Boule-Platz, auf dem die Gendarmen oft vorbeischauten. Riesige Platanen, dienstags & samstags großer Markt. Hier spielten echte Stars wie Yves Montand Pétanque.",
+    tip: "Probiere selbst eine Runde Pétanque – Kugeln werden vor Ort verliehen.",
+    duration: "20–30 Min."
+  },
+  {
+    title: "Église Notre-Dame-de-l'Assomption",
+    coords: [43.27210, 6.64020],
+    address: "Rue de l'Église, Saint-Tropez",
+    desc: "Die Kirche mit dem markanten ocker-roten Glockenturm – in vielen Filmszenen im Hintergrund zu sehen. Innen die Büste des Heiligen Tropez, Schutzpatron der Stadt.",
+    tip: "Der Turm ist das Wahrzeichen – perfektes Fotomotiv.",
+    duration: "15 Min."
+  },
+  {
+    title: "Café Sénéquier (Vieux Port)",
+    coords: [43.27225, 6.64055],
+    address: "Quai Jean Jaurès, Saint-Tropez",
+    desc: "Das legendäre rote Café direkt am alten Hafen. Lieblingsplatz von Brigitte Bardot und im Filmkanon nicht wegzudenken. Roter Sonnenschirm-Klassiker mit Blick auf die Yachten.",
+    tip: "Ein Café crème kostet hier zwar mehr – aber das Panorama ist unbezahlbar.",
+    duration: "30–45 Min."
+  },
+  {
+    title: "Vieux Port (Alter Hafen)",
+    coords: [43.27306, 6.64116],
+    address: "Quai Suffren, Saint-Tropez",
+    desc: "Der Hafen, an dem Cruchot & seine Gendarmen unzählige Verfolgungsjagden lieferten. Heute liegen hier die schönsten Yachten der Côte d'Azur neben bunten Fischerbooten.",
+    tip: "Statue von Bailli de Suffren – beliebter Treffpunkt.",
+    duration: "20 Min."
+  },
+  {
+    title: "La Ponche & Tour Vieille",
+    coords: [43.27395, 6.64164],
+    address: "Quartier de la Ponche, Saint-Tropez",
+    desc: "Das alte Fischerviertel – schmale Gassen, pastellfarbene Häuser. Hier wurden viele Außenszenen gedreht. Die kleine Bucht ist die ursprüngliche Keimzelle des Dorfes.",
+    tip: "Sonnenuntergang von der Tour Vieille – ein Muss.",
+    duration: "30 Min."
+  },
+  {
+    title: "Citadelle de Saint-Tropez",
+    coords: [43.27395, 6.64438],
+    address: "1 Montée de la Citadelle, Saint-Tropez",
+    desc: "Festung aus dem 17. Jh. hoch über der Stadt – heute Maritimes Museum. Spektakulärer Blick auf Bucht und Dächer. In den Filmen die Kulisse mehrerer Panoramaszenen.",
+    tip: "Aufstieg lohnt sich besonders am späten Nachmittag wegen des Lichts.",
+    duration: "60 Min."
+  },
+  {
+    title: "Plage de Pampelonne",
+    coords: [43.23250, 6.66150],
+    address: "Route des Plages, Ramatuelle",
+    desc: "Die berühmte Strand-Kulisse aus „Le Gendarme de Saint-Tropez" – Schauplatz der legendären Nudisten-Szenen. 5 km feinster Sand, beste Strandclubs der Welt.",
+    tip: "Mit dem Auto/Roller ca. 15 Min. vom Zentrum. Bus „Pampelonne" ab Place des Lices.",
+    duration: "2–3 Std."
+  }
+];
+
+const map = L.map('map').setView([43.273, 6.641], 15);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '&copy; OpenStreetMap',
+  maxZoom: 19
+}).addTo(map);
+
+let current = 0;
+const markers = [];
+const stepsContainer = document.getElementById('steps');
+
+stops.forEach((stop, i) => {
+  const icon = L.divIcon({
+    className: '',
+    html: `<div class="marker-label" data-idx="${i}">${i + 1}</div>`,
+    iconSize: [30, 30],
+    iconAnchor: [15, 15]
+  });
+  const marker = L.marker(stop.coords, { icon }).addTo(map);
+  marker.bindPopup(`<strong>${i + 1}. ${stop.title}</strong><br><small>${stop.address}</small>`);
+  marker.on('click', () => goTo(i));
+  markers.push(marker);
+
+  const card = document.createElement('div');
+  card.className = 'step-card';
+  card.dataset.idx = i;
+  card.innerHTML = `
+    <div><span class="step-num">${i + 1}</span><span class="step-title">${stop.title}</span></div>
+    <div class="step-body">
+      <p>${stop.desc}</p>
+      <div class="step-meta"><strong>Adresse:</strong> ${stop.address}</div>
+      <div class="step-meta"><strong>Dauer:</strong> ${stop.duration}</div>
+      <div class="step-meta"><strong>Tipp:</strong> ${stop.tip}</div>
+    </div>
+  `;
+  card.addEventListener('click', () => goTo(i));
+  stepsContainer.appendChild(card);
+});
+
+// Route line connecting all stops
+const routeCoords = stops.map(s => s.coords);
+L.polyline(routeCoords, { color: '#8b1e1e', weight: 3, dashArray: '6, 8', opacity: 0.7 }).addTo(map);
+
+function goTo(idx) {
+  current = idx;
+  render();
+}
+
+function render() {
+  document.querySelectorAll('.step-card').forEach((c, i) => {
+    c.classList.toggle('active', i === current);
+    c.classList.toggle('visited', i < current);
+  });
+  document.querySelectorAll('.marker-label').forEach((m, i) => {
+    m.classList.toggle('active', i === current);
+    m.classList.toggle('visited', i < current);
+  });
+  const stop = stops[current];
+  map.flyTo(stop.coords, 16, { duration: 0.8 });
+  markers[current].openPopup();
+
+  document.getElementById('progressBar').style.width =
+    `${((current + 1) / stops.length) * 100}%`;
+
+  document.getElementById('prevBtn').disabled = current === 0;
+  document.getElementById('nextBtn').disabled = current === stops.length - 1;
+
+  const activeCard = document.querySelector('.step-card.active');
+  if (activeCard) activeCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+document.getElementById('prevBtn').addEventListener('click', () => {
+  if (current > 0) goTo(current - 1);
+});
+document.getElementById('nextBtn').addEventListener('click', () => {
+  if (current < stops.length - 1) goTo(current + 1);
+});
+
+render();
+</script>
+</body>
+</html>
