@@ -2,40 +2,62 @@
 <html lang="de">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Auf den Spuren von Louis de Funès – Saint-Tropez</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<title>Louis de Funès Tour – Saint-Tropez</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <style>
-  * { box-sizing: border-box; }
-  html, body { margin: 0; padding: 0; height: 100%; font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }
-  body { display: flex; flex-direction: row; background: #fdfaf3; color: #2b2b2b; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; height: 100%; font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif; overflow: hidden; }
+  body { display: flex; flex-direction: column; background: #fdfaf3; color: #2b2b2b; }
 
-  #sidebar {
-    width: 380px;
-    height: 100vh;
-    overflow-y: auto;
+  header {
+    background: #8b1e1e;
+    color: #fff;
+    padding: 10px 14px;
+    padding-top: calc(10px + env(safe-area-inset-top));
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    z-index: 1000;
+  }
+  header h1 { margin: 0; font-size: 1rem; font-weight: 600; }
+  header .sub { font-size: 0.75rem; opacity: 0.85; margin-top: 2px; }
+
+  #map { flex: 1; width: 100%; }
+
+  #panel {
     background: #fff8e7;
-    border-right: 3px solid #c8a04b;
-    padding: 16px 18px;
+    border-top: 2px solid #c8a04b;
+    max-height: 45vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: env(safe-area-inset-bottom);
   }
-  #sidebar h1 {
-    font-size: 1.25rem;
-    margin: 0 0 4px;
-    color: #8b1e1e;
+  #panel.collapsed { max-height: 60px; }
+
+  .handle {
+    text-align: center;
+    padding: 6px;
+    cursor: pointer;
+    background: #fff8e7;
+    border-bottom: 1px solid #e0d3a6;
+    position: sticky;
+    top: 0;
+    z-index: 5;
   }
-  #sidebar .subtitle {
-    font-size: 0.85rem;
-    color: #555;
-    margin-bottom: 12px;
-    font-style: italic;
+  .handle::before {
+    content: "";
+    display: inline-block;
+    width: 40px;
+    height: 4px;
+    background: #c8a04b;
+    border-radius: 2px;
   }
 
   .progress {
     background: #eee2bb;
-    border-radius: 6px;
-    height: 8px;
-    overflow: hidden;
-    margin-bottom: 14px;
+    height: 4px;
+    width: 100%;
   }
   .progress-bar {
     background: #8b1e1e;
@@ -46,119 +68,134 @@
 
   .step-card {
     background: #fff;
-    border: 1px solid #e0d3a6;
-    border-radius: 8px;
+    border-bottom: 1px solid #f0e4c0;
     padding: 12px 14px;
-    margin-bottom: 10px;
     cursor: pointer;
-    transition: all 0.2s;
   }
-  .step-card:hover { border-color: #8b1e1e; transform: translateX(2px); }
   .step-card.active {
-    border-color: #8b1e1e;
     background: #fff3e0;
-    box-shadow: 0 2px 6px rgba(139, 30, 30, 0.15);
+    border-left: 4px solid #8b1e1e;
   }
   .step-card.visited .step-num { background: #4a7c3c; }
 
+  .step-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
   .step-num {
-    display: inline-block;
-    width: 26px;
-    height: 26px;
-    line-height: 26px;
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    line-height: 28px;
     text-align: center;
     background: #8b1e1e;
     color: white;
     border-radius: 50%;
     font-weight: bold;
-    margin-right: 8px;
     font-size: 0.85rem;
   }
   .step-title {
     font-weight: 600;
-    font-size: 0.98rem;
-    display: inline;
+    font-size: 0.95rem;
+    flex: 1;
+  }
+  .step-dist {
+    font-size: 0.78rem;
+    color: #8b1e1e;
+    font-weight: 600;
+    white-space: nowrap;
   }
   .step-body {
     margin-top: 8px;
-    font-size: 0.88rem;
-    line-height: 1.45;
+    font-size: 0.85rem;
+    line-height: 1.5;
     color: #444;
     display: none;
   }
   .step-card.active .step-body { display: block; }
+  .step-meta { font-size: 0.78rem; color: #666; margin-top: 4px; }
+  .step-meta strong { color: #444; }
 
-  .step-meta {
-    font-size: 0.78rem;
-    color: #777;
-    margin-top: 6px;
-  }
-  .step-meta strong { color: #555; }
-
-  .nav-buttons {
-    position: sticky;
-    bottom: 0;
-    background: #fff8e7;
-    padding: 10px 0;
+  .actions {
     display: flex;
     gap: 8px;
-    border-top: 1px solid #e0d3a6;
+    margin-top: 10px;
   }
-  .nav-buttons button {
+  .actions a, .actions button {
     flex: 1;
+    text-align: center;
     padding: 10px;
-    border: none;
-    background: #8b1e1e;
-    color: white;
-    border-radius: 6px;
-    cursor: pointer;
+    border-radius: 8px;
+    text-decoration: none;
+    font-size: 0.85rem;
     font-weight: 600;
-    font-size: 0.9rem;
+    border: none;
+    cursor: pointer;
   }
-  .nav-buttons button:disabled { background: #c4a8a8; cursor: not-allowed; }
-  .nav-buttons button:hover:not(:disabled) { background: #6b1414; }
+  .btn-nav { background: #007aff; color: white; }
+  .btn-next { background: #8b1e1e; color: white; }
+  .btn-prev { background: #eee2bb; color: #555; }
 
-  #map { flex: 1; height: 100vh; }
+  .fab {
+    position: absolute;
+    right: 12px;
+    bottom: calc(45vh + 12px);
+    z-index: 999;
+    background: white;
+    border-radius: 50%;
+    width: 48px;
+    height: 48px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    border: none;
+    font-size: 1.4rem;
+    cursor: pointer;
+    transition: bottom 0.3s;
+  }
+  #panel.collapsed ~ .fab { bottom: 80px; }
 
   .marker-label {
     background: #8b1e1e;
     color: white;
     border-radius: 50%;
-    width: 30px;
-    height: 30px;
-    line-height: 30px;
+    width: 32px;
+    height: 32px;
+    line-height: 32px;
     text-align: center;
     font-weight: bold;
     box-shadow: 0 2px 4px rgba(0,0,0,0.3);
     border: 2px solid white;
+    font-size: 0.9rem;
   }
   .marker-label.visited { background: #4a7c3c; }
-  .marker-label.active { background: #f0a020; transform: scale(1.2); }
+  .marker-label.active { background: #f0a020; transform: scale(1.25); }
 
-  @media (max-width: 720px) {
-    body { flex-direction: column; }
-    #sidebar { width: 100%; height: 50vh; border-right: none; border-bottom: 3px solid #c8a04b; }
-    #map { height: 50vh; }
+  .user-dot {
+    background: #007aff;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 3px solid white;
+    box-shadow: 0 0 0 4px rgba(0,122,255,0.3);
   }
 </style>
 </head>
 <body>
 
-<div id="sidebar">
-  <h1>Auf den Spuren von Louis de Funès</h1>
-  <div class="subtitle">Le Gendarme de Saint-Tropez – Tour Schritt für Schritt</div>
-
-  <div class="progress"><div class="progress-bar" id="progressBar"></div></div>
-
-  <div id="steps"></div>
-
-  <div class="nav-buttons">
-    <button id="prevBtn">&larr; Zurück</button>
-    <button id="nextBtn">Weiter &rarr;</button>
-  </div>
-</div>
+<header>
+  <h1>🎬 Auf den Spuren von Louis de Funès</h1>
+  <div class="sub">Le Gendarme de Saint-Tropez · interaktive Tour</div>
+</header>
 
 <div id="map"></div>
+
+<button class="fab" id="locateBtn" title="Mein Standort">📍</button>
+
+<div id="panel">
+  <div class="handle" id="handle"></div>
+  <div class="progress"><div class="progress-bar" id="progressBar"></div></div>
+  <div id="steps"></div>
+</div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
@@ -167,7 +204,7 @@ const stops = [
     title: "Musée de la Gendarmerie et du Cinéma",
     coords: [43.27178, 6.63876],
     address: "2 Place Blanqui, 83990 Saint-Tropez",
-    desc: "Der berühmteste Drehort: die echte Gendarmerie aus den Filmen. Heute ein Museum, gewidmet Louis de Funès und der Filmreihe. Originale Uniformen, Requisiten, Filmplakate und das gelbe Polizeiauto warten auf dich.",
+    desc: "Der berühmteste Drehort: die echte Gendarmerie aus den Filmen. Heute Museum für Louis de Funès – mit originalen Uniformen, Requisiten und dem gelben Polizeiauto.",
     tip: "Eintritt ca. 4 €. Geöffnet täglich außer Dienstag.",
     duration: "45–60 Min."
   },
@@ -175,31 +212,31 @@ const stops = [
     title: "Place des Lices",
     coords: [43.27063, 6.63769],
     address: "Place des Lices, Saint-Tropez",
-    desc: "Der berühmte Boule-Platz, auf dem die Gendarmen oft vorbeischauten. Riesige Platanen, dienstags & samstags großer Markt. Hier spielten echte Stars wie Yves Montand Pétanque.",
-    tip: "Probiere selbst eine Runde Pétanque – Kugeln werden vor Ort verliehen.",
+    desc: "Der Pétanque-Platz unter Platanen, wo die Gendarmen oft vorbeischauten. Dienstags & samstags großer Markt.",
+    tip: "Boule-Kugeln kann man vor Ort leihen – mitspielen erlaubt!",
     duration: "20–30 Min."
   },
   {
     title: "Église Notre-Dame-de-l'Assomption",
     coords: [43.27210, 6.64020],
     address: "Rue de l'Église, Saint-Tropez",
-    desc: "Die Kirche mit dem markanten ocker-roten Glockenturm – in vielen Filmszenen im Hintergrund zu sehen. Innen die Büste des Heiligen Tropez, Schutzpatron der Stadt.",
-    tip: "Der Turm ist das Wahrzeichen – perfektes Fotomotiv.",
+    desc: "Die Kirche mit ocker-rotem Glockenturm – Wahrzeichen und in vielen Filmszenen im Hintergrund.",
+    tip: "Innen die Büste des heiligen Tropez.",
     duration: "15 Min."
   },
   {
-    title: "Café Sénéquier (Vieux Port)",
+    title: "Café Sénéquier",
     coords: [43.27225, 6.64055],
     address: "Quai Jean Jaurès, Saint-Tropez",
-    desc: "Das legendäre rote Café direkt am alten Hafen. Lieblingsplatz von Brigitte Bardot und im Filmkanon nicht wegzudenken. Roter Sonnenschirm-Klassiker mit Blick auf die Yachten.",
-    tip: "Ein Café crème kostet hier zwar mehr – aber das Panorama ist unbezahlbar.",
+    desc: "Das legendäre rote Café am alten Hafen. Brigitte Bardots Stammplatz – und unverzichtbar im Film-Universum.",
+    tip: "Roter Sonnenschirm + Café crème = das Foto.",
     duration: "30–45 Min."
   },
   {
     title: "Vieux Port (Alter Hafen)",
     coords: [43.27306, 6.64116],
     address: "Quai Suffren, Saint-Tropez",
-    desc: "Der Hafen, an dem Cruchot & seine Gendarmen unzählige Verfolgungsjagden lieferten. Heute liegen hier die schönsten Yachten der Côte d'Azur neben bunten Fischerbooten.",
+    desc: "Schauplatz vieler Verfolgungsjagden mit Cruchot. Heute liegen hier Yachten neben bunten Fischerbooten.",
     tip: "Statue von Bailli de Suffren – beliebter Treffpunkt.",
     duration: "20 Min."
   },
@@ -207,44 +244,62 @@ const stops = [
     title: "La Ponche & Tour Vieille",
     coords: [43.27395, 6.64164],
     address: "Quartier de la Ponche, Saint-Tropez",
-    desc: "Das alte Fischerviertel – schmale Gassen, pastellfarbene Häuser. Hier wurden viele Außenszenen gedreht. Die kleine Bucht ist die ursprüngliche Keimzelle des Dorfes.",
-    tip: "Sonnenuntergang von der Tour Vieille – ein Muss.",
+    desc: "Altes Fischerviertel mit schmalen Gassen und pastellfarbenen Häusern. Original-Außenkulisse vieler Szenen.",
+    tip: "Sonnenuntergang an der Tour Vieille – Pflicht.",
     duration: "30 Min."
   },
   {
     title: "Citadelle de Saint-Tropez",
     coords: [43.27395, 6.64438],
     address: "1 Montée de la Citadelle, Saint-Tropez",
-    desc: "Festung aus dem 17. Jh. hoch über der Stadt – heute Maritimes Museum. Spektakulärer Blick auf Bucht und Dächer. In den Filmen die Kulisse mehrerer Panoramaszenen.",
-    tip: "Aufstieg lohnt sich besonders am späten Nachmittag wegen des Lichts.",
+    desc: "Festung aus dem 17. Jh. mit Maritimem Museum – spektakulärer Blick über Bucht und Dächer.",
+    tip: "Später Nachmittag = bestes Licht für Fotos.",
     duration: "60 Min."
   },
   {
     title: "Plage de Pampelonne",
     coords: [43.23250, 6.66150],
     address: "Route des Plages, Ramatuelle",
-    desc: "Die berühmte Strand-Kulisse aus „Le Gendarme de Saint-Tropez" – Schauplatz der legendären Nudisten-Szenen. 5 km feinster Sand, beste Strandclubs der Welt.",
-    tip: "Mit dem Auto/Roller ca. 15 Min. vom Zentrum. Bus „Pampelonne" ab Place des Lices.",
+    desc: "Berühmte Strandkulisse aus „Le Gendarme de Saint-Tropez" – Schauplatz der Nudisten-Szenen. 5 km Sand und legendäre Strandclubs.",
+    tip: "Auto/Roller ca. 15 Min. vom Zentrum oder Bus „Pampelonne" ab Place des Lices.",
     duration: "2–3 Std."
   }
 ];
 
-const map = L.map('map').setView([43.273, 6.641], 15);
+const map = L.map('map', { zoomControl: false }).setView([43.273, 6.641], 15);
+L.control.zoom({ position: 'topright' }).addTo(map);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '&copy; OpenStreetMap',
   maxZoom: 19
 }).addTo(map);
 
 let current = 0;
+let userMarker = null;
+let userCoords = null;
 const markers = [];
 const stepsContainer = document.getElementById('steps');
+
+function haversine(a, b) {
+  const R = 6371000;
+  const toRad = x => x * Math.PI / 180;
+  const dLat = toRad(b[0] - a[0]);
+  const dLon = toRad(b[1] - a[1]);
+  const lat1 = toRad(a[0]), lat2 = toRad(b[0]);
+  const h = Math.sin(dLat/2)**2 + Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLon/2)**2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+function formatDist(m) {
+  if (m < 1000) return `${Math.round(m)} m`;
+  return `${(m/1000).toFixed(1)} km`;
+}
 
 stops.forEach((stop, i) => {
   const icon = L.divIcon({
     className: '',
     html: `<div class="marker-label" data-idx="${i}">${i + 1}</div>`,
-    iconSize: [30, 30],
-    iconAnchor: [15, 15]
+    iconSize: [32, 32],
+    iconAnchor: [16, 16]
   });
   const marker = L.marker(stop.coords, { icon }).addTo(map);
   marker.bindPopup(`<strong>${i + 1}. ${stop.title}</strong><br><small>${stop.address}</small>`);
@@ -254,27 +309,46 @@ stops.forEach((stop, i) => {
   const card = document.createElement('div');
   card.className = 'step-card';
   card.dataset.idx = i;
+  const mapsUrl = `https://maps.apple.com/?daddr=${stop.coords[0]},${stop.coords[1]}&dirflg=w`;
   card.innerHTML = `
-    <div><span class="step-num">${i + 1}</span><span class="step-title">${stop.title}</span></div>
+    <div class="step-head">
+      <span class="step-num">${i + 1}</span>
+      <span class="step-title">${stop.title}</span>
+      <span class="step-dist" data-dist="${i}">–</span>
+    </div>
     <div class="step-body">
       <p>${stop.desc}</p>
       <div class="step-meta"><strong>Adresse:</strong> ${stop.address}</div>
       <div class="step-meta"><strong>Dauer:</strong> ${stop.duration}</div>
       <div class="step-meta"><strong>Tipp:</strong> ${stop.tip}</div>
+      <div class="actions">
+        <button class="btn-prev" onclick="event.stopPropagation(); prev();">← Zurück</button>
+        <a class="btn-nav" href="${mapsUrl}" onclick="event.stopPropagation();">🧭 Hinführen</a>
+        <button class="btn-next" onclick="event.stopPropagation(); next();">Weiter →</button>
+      </div>
     </div>
   `;
   card.addEventListener('click', () => goTo(i));
   stepsContainer.appendChild(card);
 });
 
-// Route line connecting all stops
 const routeCoords = stops.map(s => s.coords);
 L.polyline(routeCoords, { color: '#8b1e1e', weight: 3, dashArray: '6, 8', opacity: 0.7 }).addTo(map);
+
+function updateDistances() {
+  if (!userCoords) return;
+  document.querySelectorAll('[data-dist]').forEach(el => {
+    const i = parseInt(el.dataset.dist);
+    el.textContent = formatDist(haversine(userCoords, stops[i].coords));
+  });
+}
 
 function goTo(idx) {
   current = idx;
   render();
 }
+function next() { if (current < stops.length - 1) goTo(current + 1); }
+function prev() { if (current > 0) goTo(current - 1); }
 
 function render() {
   document.querySelectorAll('.step-card').forEach((c, i) => {
@@ -288,25 +362,50 @@ function render() {
   const stop = stops[current];
   map.flyTo(stop.coords, 16, { duration: 0.8 });
   markers[current].openPopup();
-
   document.getElementById('progressBar').style.width =
     `${((current + 1) / stops.length) * 100}%`;
-
-  document.getElementById('prevBtn').disabled = current === 0;
-  document.getElementById('nextBtn').disabled = current === stops.length - 1;
-
   const activeCard = document.querySelector('.step-card.active');
   if (activeCard) activeCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
-document.getElementById('prevBtn').addEventListener('click', () => {
-  if (current > 0) goTo(current - 1);
+// Geolocation
+const userIcon = L.divIcon({ className: '', html: '<div class="user-dot"></div>', iconSize: [18,18], iconAnchor: [9,9] });
+
+function startTracking() {
+  if (!navigator.geolocation) {
+    alert("Geolocation wird auf diesem Gerät nicht unterstützt.");
+    return;
+  }
+  navigator.geolocation.watchPosition(
+    pos => {
+      userCoords = [pos.coords.latitude, pos.coords.longitude];
+      if (!userMarker) {
+        userMarker = L.marker(userCoords, { icon: userIcon }).addTo(map);
+      } else {
+        userMarker.setLatLng(userCoords);
+      }
+      updateDistances();
+    },
+    err => {
+      alert("Standort nicht verfügbar. In den iPhone-Einstellungen Safari den Standortzugriff erlauben.");
+    },
+    { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
+  );
+}
+
+document.getElementById('locateBtn').addEventListener('click', () => {
+  if (!userMarker) startTracking();
+  else map.flyTo(userCoords, 17);
 });
-document.getElementById('nextBtn').addEventListener('click', () => {
-  if (current < stops.length - 1) goTo(current + 1);
+
+// Panel collapse
+document.getElementById('handle').addEventListener('click', () => {
+  document.getElementById('panel').classList.toggle('collapsed');
+  setTimeout(() => map.invalidateSize(), 350);
 });
 
 render();
+startTracking();
 </script>
 </body>
 </html>
